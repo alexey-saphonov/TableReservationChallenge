@@ -1,31 +1,27 @@
 package com.alexeysafonov.tablereservationchallenge.model;
 
-import com.google.gson.annotations.SerializedName;
-
+import io.realm.RealmObject;
 import io.realm.annotations.PrimaryKey;
 
 /**
  * This class represents a customer in the system.
  */
-public class Customer {
+public class Customer extends RealmObject {
 
-    @SerializedName("customerFirstName")
-    String mFirstName;
-    @SerializedName("customerLastName")
-    String mLastName;
+    String customerFirstName;
+    String customerLastName;
     @PrimaryKey
-    @SerializedName("id")
-    int mId;
+    int id;
 
     public String getFirstName() {
-        return mFirstName;
+        return customerFirstName;
     }
 
     public String getLastName() {
-        return mLastName;
+        return customerLastName;
     }
 
     public int getId() {
-        return mId;
+        return id;
     }
 }

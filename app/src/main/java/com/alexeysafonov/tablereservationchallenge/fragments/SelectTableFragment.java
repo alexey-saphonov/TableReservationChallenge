@@ -27,6 +27,7 @@ public class SelectTableFragment extends Fragment {
 
     private TableAdapter mAdapter;
     private TableSelectionProtocol mListener;
+    private List<Boolean> mTables;
 
     public SelectTableFragment() {
         // Required empty public constructor
@@ -44,6 +45,7 @@ public class SelectTableFragment extends Fragment {
         View view = inflater.inflate(R.layout.fragment_select_table, container, false);
 
         final GridView tableGrid = (GridView) view.findViewById(R.id.table_grid);
+        mAdapter.setState(mTables);
         tableGrid.setAdapter(mAdapter);
         tableGrid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
@@ -75,7 +77,7 @@ public class SelectTableFragment extends Fragment {
     }
 
     public void setTables(List<Boolean> tables) {
-        mAdapter.setState(tables);
+        mTables = tables;
     }
 
     public interface TableSelectionProtocol {

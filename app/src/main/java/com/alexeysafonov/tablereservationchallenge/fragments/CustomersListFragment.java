@@ -12,7 +12,12 @@ import android.view.ViewGroup;
 import com.alexeysafonov.tablereservationchallenge.R;
 import com.alexeysafonov.tablereservationchallenge.model.Customer;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
+
+import rx.Observable;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Action1;
 
 /**
  * A fragment representing a list of Items.
@@ -23,6 +28,7 @@ import java.util.Collections;
 public class CustomersListFragment extends Fragment {
 
     private ListViewToModelProtocol mListener;
+    private CustomersRecyclerViewAdapter mAdapter;
 
     /**
      * Mandatory empty constructor for the fragment manager to instantiate the
@@ -46,7 +52,8 @@ public class CustomersListFragment extends Fragment {
             Context context = view.getContext();
             RecyclerView recyclerView = (RecyclerView) view;
             recyclerView.setLayoutManager(new LinearLayoutManager(context));
-            recyclerView.setAdapter(new CustomersRecyclerViewAdapter(Collections.<Customer>emptyList(), mListener));
+            mAdapter = new CustomersRecyclerViewAdapter(new ArrayList<Customer>(), mListener);
+            recyclerView.setAdapter(mAdapter);
         }
         return view;
     }
@@ -57,6 +64,14 @@ public class CustomersListFragment extends Fragment {
         super.onAttach(context);
         if (context instanceof ListViewToModelProtocol) {
             mListener = (ListViewToModelProtocol) context;
+            mListener.getCustomers()
+                    .observeOn(AndroidSchedulers.mainThread()).
+                    subscribe(new Action1<List<Customer>>() {
+                        @Override
+                        public void call(List<Customer> customers) {
+                            mAdapter.setValues(customers);
+                        }
+                    });
         } else {
             throw new RuntimeException(context.toString()
                     + " must implement ListViewToModelProtocol");
@@ -71,5 +86,6 @@ public class CustomersListFragment extends Fragment {
 
     public interface ListViewToModelProtocol {
         void onCustomerSelected(Customer item);
+        Observable<List<Customer>> getCustomers();
     }
 }

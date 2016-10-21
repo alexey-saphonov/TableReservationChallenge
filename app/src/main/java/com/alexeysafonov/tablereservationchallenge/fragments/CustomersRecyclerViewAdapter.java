@@ -1,5 +1,6 @@
 package com.alexeysafonov.tablereservationchallenge.fragments;
 
+import android.support.annotation.NonNull;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -31,6 +32,12 @@ public class CustomersRecyclerViewAdapter extends RecyclerView.Adapter<Customers
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.fragment_customer_item, parent, false);
         return new ViewHolder(view);
+    }
+
+    public void setValues(@NonNull final List<Customer> customers) {
+        mValues.clear();
+        mValues.addAll(customers);
+        notifyDataSetChanged();
     }
 
     @Override
