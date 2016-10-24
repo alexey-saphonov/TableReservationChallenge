@@ -2,16 +2,18 @@ package com.alexeysafonov.tablereservationchallenge.model;
 
 import io.realm.RealmObject;
 import io.realm.annotations.PrimaryKey;
+import io.realm.annotations.RealmClass;
 
 /**
  * This class represents a customer in the system.
  */
+@RealmClass
 public class Customer extends RealmObject {
 
-    String customerFirstName;
-    String customerLastName;
+    protected String customerFirstName;
+    protected String customerLastName;
     @PrimaryKey
-    int id;
+    protected int id;
 
     public String getFirstName() {
         return customerFirstName;

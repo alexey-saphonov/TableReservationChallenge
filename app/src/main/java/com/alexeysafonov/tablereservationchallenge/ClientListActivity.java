@@ -2,7 +2,6 @@ package com.alexeysafonov.tablereservationchallenge;
 
 import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AppCompatActivity;
 
 import com.alexeysafonov.tablereservationchallenge.fragments.CustomersListFragment;
@@ -12,6 +11,7 @@ import com.alexeysafonov.tablereservationchallenge.model.Table;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,9 +20,13 @@ import io.realm.RealmConfiguration;
 import io.realm.RealmObject;
 import io.realm.RealmResults;
 import rx.Observable;
+import rx.functions.Action1;
 import rx.functions.Func1;
 
 public class ClientListActivity extends AppCompatActivity implements SelectTableFragment.TableSelectionProtocol, CustomersListFragment.ListViewToModelProtocol {
+
+    private static final long VALIDITY_PERIOD = 10 * 60 * 1000; // 10 minutes.
+    public static final int NUMBER_OF_TABLES = 70;
 
     SelectTableFragment mSelectTableFragment = SelectTableFragment.newInstance();
     CustomersListFragment mCustomersListFragment = CustomersListFragment.newInstance();
@@ -36,8 +40,16 @@ public class ClientListActivity extends AppCompatActivity implements SelectTable
         RealmConfiguration realmConfiguration = new RealmConfiguration.Builder().build();
         Realm.deleteRealm(realmConfiguration);
         mRealm = Realm.getInstance(realmConfiguration);
+        // Initial setup.
         try {
             loadJsonFromStream(mRealm, Customer.class, "customer_list.json");
+            // Add 70 tables (0..69) all are available.
+            Realm realm = mRealm;
+            List<Table> tables = initTables();
+            realm.beginTransaction();
+            realm.copyToRealmOrUpdate(tables);
+            realm.commitTransaction();
+
         } catch (IOException ex) {
             throw new RuntimeException("Resource file with customers is missing! Must be in the project!");
         }
@@ -53,8 +65,15 @@ public class ClientListActivity extends AppCompatActivity implements SelectTable
         super.onResume();
     }
 
-    private List<Table> loadTables() {
-        return null;
+    private List<Table> initTables() {
+        List<Table> tables = new ArrayList<>(NUMBER_OF_TABLES);
+        for (int i = 0; i < NUMBER_OF_TABLES; i++) {
+            Table table = new Table();
+            table.setId(i);
+            table.setAvailable(true);
+            tables.add(table);
+        }
+        return tables;
     }
 
     private String readTextFileFromAssets(@NonNull final String fileName) {
@@ -102,7 +121,14 @@ public class ClientListActivity extends AppCompatActivity implements SelectTable
                 .add(R.id.content_fragment, mSelectTableFragment)
                 .addToBackStack(null)
                 .commit();
-        mSelectTableFragment.setTables(Arrays.asList(new Boolean[] {true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false}));
+        mRealm.where(Table.class).findAll()
+                .asObservable()
+                .subscribe(new Action1<RealmResults<Table>>() {
+                    @Override
+                    public void call(RealmResults<Table> tables) {
+                        mSelectTableFragment.setTables(Arrays.asList(tables.toArray(new Table[tables.size()])));
+                    }
+                });
     }
 
     @Override
@@ -118,11 +144,13 @@ public class ClientListActivity extends AppCompatActivity implements SelectTable
     }
 
     @Override
-    public void onTableSelected(int tableId) {
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        fragmentManager.beginTransaction()
-                .remove(mSelectTableFragment)
-                .commit();
-        getSupportFragmentManager().executePendingTransactions();
+    public void onTableSelected(final int tableId) {
+        mRealm.executeTransaction(new Realm.Transaction() {
+            @Override
+            public void execute(Realm realm) {
+                Table table = realm.where(Table.class).equalTo("id", tableId).findFirst();
+                table.setAvailable(false);
+            }
+        });
     }
 }

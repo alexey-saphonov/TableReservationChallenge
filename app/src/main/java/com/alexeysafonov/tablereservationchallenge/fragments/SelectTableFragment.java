@@ -16,6 +16,7 @@ import android.widget.GridView;
 import android.widget.TextView;
 
 import com.alexeysafonov.tablereservationchallenge.R;
+import com.alexeysafonov.tablereservationchallenge.model.Table;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +28,7 @@ public class SelectTableFragment extends Fragment {
 
     private TableAdapter mAdapter;
     private TableSelectionProtocol mListener;
-    private List<Boolean> mTables;
+    private List<Table> mTables;
 
     public SelectTableFragment() {
         // Required empty public constructor
@@ -50,8 +51,9 @@ public class SelectTableFragment extends Fragment {
         tableGrid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                if (mAdapter.getItem(position)) {
-                    mListener.onTableSelected(position);
+                Table table = mAdapter.getItem(position);
+                if (table.isAvailable()) {
+                    mListener.onTableSelected(table.getId());
                 }
             }
         });
@@ -76,23 +78,28 @@ public class SelectTableFragment extends Fragment {
         mListener = null;
     }
 
-    public void setTables(List<Boolean> tables) {
+    public void setTables(List<Table> tables) {
+        // Save tables list anyway.
         mTables = tables;
+        if (mAdapter != null) {
+            // If Ui is already initialized just update it.
+            mAdapter.setState(mTables);
+        }
     }
 
     public interface TableSelectionProtocol {
         void onTableSelected(int tableId);
     }
 
-    private class TableAdapter extends ArrayAdapter<Boolean> {
+    private class TableAdapter extends ArrayAdapter<Table> {
 
-        List<Boolean> mState = Collections.emptyList();
+        List<Table> mState = Collections.emptyList();
 
         public TableAdapter(Context context) {
             super(context, R.layout.table_cell);
         }
 
-        public void setState(List<Boolean> state) {
+        public void setState(List<Table> state) {
             mState = state;
             notifyDataSetChanged();
         }
@@ -104,7 +111,7 @@ public class SelectTableFragment extends Fragment {
 
         @Nullable
         @Override
-        public Boolean getItem(int position) {
+        public Table getItem(int position) {
             return mState.get(position);
         }
 
@@ -121,8 +128,9 @@ public class SelectTableFragment extends Fragment {
                 view = LayoutInflater.from(parent.getContext())
                         .inflate(R.layout.table_cell, parent, false);
             }
-            view.setBackgroundColor(getItem(position)? Color.RED: Color.GREEN);
-            ((TextView)view.findViewById(R.id.table_id)).setText(Integer.toString(position));
+            Table item = getItem(position);
+            view.setBackgroundColor(item.isAvailable()? Color.GREEN: Color.RED);
+            ((TextView)view.findViewById(R.id.table_id)).setText(Integer.toString(item.getId()));
             return view;
         }
     }
