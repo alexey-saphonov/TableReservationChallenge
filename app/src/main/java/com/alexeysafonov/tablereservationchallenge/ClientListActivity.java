@@ -1,5 +1,6 @@
 package com.alexeysafonov.tablereservationchallenge;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -13,7 +14,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import io.realm.Realm;
 import io.realm.RealmConfiguration;
@@ -27,6 +32,8 @@ public class ClientListActivity extends AppCompatActivity implements SelectTable
 
     private static final long VALIDITY_PERIOD = 10 * 60 * 1000; // 10 minutes.
     public static final int NUMBER_OF_TABLES = 70;
+    public static final String RESERVATIONS_VALIDITY_KEY = "reservations-validity";
+    public static final String CUSTOMER_LIST_JSON_FILE_NAME = "customer_list.json";
 
     SelectTableFragment mSelectTableFragment = SelectTableFragment.newInstance();
     CustomersListFragment mCustomersListFragment = CustomersListFragment.newInstance();
@@ -38,26 +45,51 @@ public class ClientListActivity extends AppCompatActivity implements SelectTable
         setContentView(R.layout.activity_client_list);
         Realm.init(getApplicationContext());
         RealmConfiguration realmConfiguration = new RealmConfiguration.Builder().build();
-        Realm.deleteRealm(realmConfiguration);
+        //Realm.deleteRealm(realmConfiguration);
         mRealm = Realm.getInstance(realmConfiguration);
         // Initial setup.
         try {
-            loadJsonFromStream(mRealm, Customer.class, "customer_list.json");
-            // Add 70 tables (0..69) all are available.
-            Realm realm = mRealm;
-            List<Table> tables = initTables();
-            realm.beginTransaction();
-            realm.copyToRealmOrUpdate(tables);
-            realm.commitTransaction();
-
+            loadJsonFromStream(mRealm, Customer.class, CUSTOMER_LIST_JSON_FILE_NAME);
         } catch (IOException ex) {
             throw new RuntimeException("Resource file with customers is missing! Must be in the project!");
         }
+
+        scheduleReservationReset();
 
         getSupportFragmentManager()
                 .beginTransaction()
                 .add(R.id.content_fragment, mCustomersListFragment)
                 .commit();
+    }
+
+    private void scheduleReservationReset() {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        // Check the last update.
+                        long validTo = getPreferences(MODE_PRIVATE).getLong(RESERVATIONS_VALIDITY_KEY, 0);
+                        long now = Calendar.getInstance().getTimeInMillis();
+                        if (validTo - now < 0) {
+                            // Add 70 tables (0..69) all are available.
+                            mRealm.executeTransaction(new Realm.Transaction() {
+                                @Override
+                                public void execute(Realm realm) {
+                                    realm.copyToRealmOrUpdate(initTables());
+                                }
+                            });
+
+                            SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE).edit();
+                            editor.putLong(RESERVATIONS_VALIDITY_KEY, now + VALIDITY_PERIOD);
+                            editor.apply();
+                        }
+                    }
+                });
+            }
+        }, 0L, VALIDITY_PERIOD, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -76,22 +108,6 @@ public class ClientListActivity extends AppCompatActivity implements SelectTable
         return tables;
     }
 
-    private String readTextFileFromAssets(@NonNull final String fileName) {
-        String text = null;
-        try {
-            InputStream is = getAssets().open(fileName);
-            int size = is.available();
-            byte[] buffer = new byte[size];
-            is.read(buffer);
-            is.close();
-            text = new String(buffer, "UTF-8");
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            return null;
-        }
-        return text;
-    }
-
     private void loadJsonFromStream(@NonNull final Realm realm,
                                     @NonNull final Class<? extends RealmObject> realmClass,
                                     @NonNull final String fileName) throws IOException {
@@ -102,7 +118,7 @@ public class ClientListActivity extends AppCompatActivity implements SelectTable
         // Open a transaction to store items into the realm
         realm.beginTransaction();
         try {
-            realm.createAllFromJson(realmClass, stream);
+            realm.createOrUpdateAllFromJson(realmClass, stream);
             realm.commitTransaction();
         } catch (IOException e) {
             // Remember to cancel the transaction if anything goes wrong.
