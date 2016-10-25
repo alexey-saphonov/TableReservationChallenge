@@ -17,7 +17,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import io.realm.Realm;
-import io.realm.RealmConfiguration;
 import io.realm.RealmObject;
 import io.realm.RealmResults;
 import rx.Observable;
@@ -31,21 +30,22 @@ import static android.content.Context.MODE_PRIVATE;
 public class Model {
 
     private static final long VALIDITY_PERIOD = 10 * 60 * 1000; // 10 minutes.
-    public static final int NUMBER_OF_TABLES = 70;
-    public static final String RESERVATIONS_VALIDITY_KEY = "reservations-validity";
-    public static final String CUSTOMER_LIST_JSON_FILE_NAME = "customer_list.json";
-    public static final String RESERVATIONS_METADATA_SHP = "reservations-metadata";
+    private static final int NUMBER_OF_TABLES = 70;
+    private static final String RESERVATIONS_VALIDITY_KEY = "reservations-validity";
+    private static final String CUSTOMER_LIST_JSON_FILE_NAME = "customer_list.json";
+    private static final String RESERVATIONS_METADATA_SHP = "reservations-metadata";
 
     private Realm mRealm;
     private Context mContext;
     private Handler mHandler;
 
+    private ScheduledExecutorService mScheduler = Executors.newSingleThreadScheduledExecutor();
+
     public void init(@NonNull final  Context context) {
         mContext = context;
         mHandler = new Handler(Looper.getMainLooper());
         Realm.init(context);
-        RealmConfiguration realmConfiguration = new RealmConfiguration.Builder().build();
-        mRealm = Realm.getInstance(realmConfiguration);
+        mRealm = Realm.getDefaultInstance();
         // Initial setup.
         try {
             loadJsonFromStream(mRealm, Customer.class, CUSTOMER_LIST_JSON_FILE_NAME);
@@ -56,8 +56,7 @@ public class Model {
     }
 
     private void scheduleReservationReset() {
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(new Runnable() {
+        mScheduler.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 mHandler.post(new Runnable() {
@@ -65,7 +64,7 @@ public class Model {
                     public void run() {
                         // Check the last update.
                         long validTo = mContext.getSharedPreferences(RESERVATIONS_METADATA_SHP, MODE_PRIVATE).getLong(RESERVATIONS_VALIDITY_KEY, 0);
-                        long now = Calendar.getInstance().getTimeInMillis();
+                        final long now = Calendar.getInstance().getTimeInMillis();
                         if (validTo - now < 0) {
                             // Add 70 tables (0..69) all are available.
                             mRealm.executeTransaction(new Realm.Transaction() {
@@ -148,5 +147,9 @@ public class Model {
                 table.setAvailable(false);
             }
         });
+    }
+
+    public void setScheduler(@NonNull final ScheduledExecutorService scheduler) {
+        mScheduler = scheduler;
     }
 }
